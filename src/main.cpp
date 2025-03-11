@@ -32,6 +32,8 @@ void setup() {
   digitalWrite(RPWM, LOW); // Inicializa RPWM en bajo (motor apagado)
   digitalWrite(LPWM, LOW); // Inicializa LPWM en bajo (motor apagado)
 
+  checkForEEPROMClear();  // Verifica si hay un comando para borrar la EEPROM antes de leerla
+
   // Lee los valores guardados en la EEPROM
   EEPROM.get(POS_ADDR, currentPosition);  // Recupera la última posición guardada
   EEPROM.get(MIN_ADDR, minPotValue);      // Recupera el valor mínimo calibrado
@@ -115,6 +117,35 @@ void loop() {
   Serial.print("Pot: "); Serial.print(targetPosition);  // Muestra la posición objetivo
   Serial.print("% - Posición actual: "); Serial.println(currentPosition);  // Muestra la posición actual
   delay(50);  // Pequeño retardo para estabilidad
+}
+
+// Función para verificar si se recibe el comando "borrar-eeprom" por el Monitor Serial
+void checkForEEPROMClear() {
+  Serial.println("Escribe 'borrar-eeprom' para limpiar la memoria EEPROM (10 segundos para escribir)...");  // Instrucción al usuario
+  unsigned long startTime = millis();  // Registra el tiempo de inicio
+  String input = "";  // Variable para almacenar el texto recibido
+
+  while (millis() - startTime < 10000) {  // Espera 10 segundos para recibir un comando
+    if (Serial.available() > 0) {  // Si hay datos disponibles en el puerto Serial
+      char c = Serial.read();  // Lee un carácter
+      if (c == '\n' || c == '\r') {  // Si es un salto de línea o retorno de carro
+        input.trim();  // Elimina espacios o caracteres extra
+        if (input == "borrar-eeprom") {  // Compara el texto recibido con el comando
+          Serial.println("Borrando EEPROM...");  // Confirma la acción
+          for (int i = 0; i < EEPROM.length(); i++) {  // Recorre toda la memoria EEPROM
+            EEPROM.write(i, 0);  // Escribe 0 en cada posición
+          }
+          Serial.println("EEPROM borrada. Reinicia el Arduino para calibrar de nuevo.");  // Mensaje de confirmación
+          while (true);  // Detiene el programa hasta que reinicies
+        }
+        input = "";  // Resetea el buffer de entrada
+      } else {
+        input += c;  // Agrega el carácter al buffer
+      }
+    }
+    delay(10);  // Pequeño retardo para no saturar el procesador
+  }
+  Serial.println("Tiempo de espera terminado. Continuando...");  // Mensaje si no se recibe el comando
 }
 
 // Función para cerrar la válvula forzosamente

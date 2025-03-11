@@ -67,6 +67,14 @@ Este proyecto consiste en un sistema electrónico basado en Arduino Uno R3 para 
 3. **Cierre Forzado**:
    - Presiona el botón; la válvula se cerrará por 2 segundos (12V) e ignorará el potenciómetro por 5 segundos.
 
+### Borrar la EEPROM y Recalibrar
+- **Comando Serial**: Para reiniciar la calibración, podés borrar la memoria EEPROM usando el Monitor Serial:
+  1. Conecta el Arduino por USB a una PC y abre el Monitor Serial (115200 baudios).
+  2. Al encender el sistema, tenés 10 segundos para escribir `borrar-eeprom` y presionar Enter.
+  3. Si se ejecuta el comando, la EEPROM se borra completamente, y al reiniciar el Arduino, se iniciará el proceso de calibración nuevamente.
+  4. Esto es útil si los valores calibrados se corrompen o querés empezar de cero.
+- **Nota**: Después de borrar, desconecta y reconecta el Arduino para que la calibración se ejecute automáticamente.
+
 ## Notas Adicionales
 - **Depuración**: Usa el Monitor Serial para verificar `targetPosition` y `currentPosition`.
 - **Ajustes**: Si la válvula no se mueve a bajos %, aumenta el PWM mínimo en `map()` (ej. de 100 a 150).
