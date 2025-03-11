@@ -90,8 +90,8 @@ void loop() {
     targetPosition = map(potValue, minPotValue, maxPotValue, 0, 100);  // Mapea a 0-100%
     if (targetPosition > 100) targetPosition = 100;  // Limita targetPosition a 100% si se excede
 
-    // Actualiza currentPosition solo si la diferencia con targetPosition es significativa (mayor a 2%)
-    if (abs(targetPosition - currentPosition) > 2) {  // Si la diferencia es mayor a 2%
+    // Actualiza currentPosition solo si la diferencia con targetPosition es significativa o está cerca de un extremo
+    if (abs(targetPosition - currentPosition) > 2 || (targetPosition == 0 && currentPosition > 0) || (targetPosition == 100 && currentPosition < 100)) {
       lastMoveTime = millis();  // Actualiza el tiempo del último movimiento
 
       if (targetPosition > currentPosition) {  // Si debe abrirse más
@@ -108,7 +108,7 @@ void loop() {
         if (currentPosition < targetPosition) currentPosition = targetPosition;  // Limita al objetivo
       }
 
-      // Forzar límites exactos en 0% y 100%
+      // Forzar límites exactos en 0% y 100% después del ajuste
       if (targetPosition == 0 && currentPosition > 0) currentPosition = 0;  // Fuerza 0% si es el objetivo
       if (targetPosition == 100 && currentPosition < 100) currentPosition = 100;  // Fuerza 100% si es el objetivo
 
