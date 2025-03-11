@@ -1,6 +1,11 @@
 #include <Arduino.h>
 #include <EEPROM.h>  // Incluye la biblioteca EEPROM para almacenar datos persistentes
 
+// Prototipos de funciones para que el compilador las reconozca antes de usarlas
+void calibrateSystem();
+void checkForEEPROMClear();
+void forceCloseValve();
+
 // Definición de constantes para pines y parámetros
 const int potPin = A0;    // Pin analógico A0 para leer el valor del potenciómetro
 const int RPWM = 9;       // Pin 9 como salida PWM para controlar la apertura (RPWM del BTS7960)
@@ -83,8 +88,10 @@ void loop() {
     ignorePot = false;  // Reanuda la lectura del potenciómetro
     potValue = analogRead(potPin);  // Lee el valor analógico del potenciómetro
     targetPosition = map(potValue, minPotValue, maxPotValue, 0, 100);  // Mapea a 0-100%
+    if (targetPosition > 100) targetPosition = 100;  // Limita targetPosition a 100% si se excede
 
-    if (abs(potValue - lastPotValue) > 5) {  // Si hay un cambio significativo (tolerancia)
+    // Actualiza currentPosition solo si la diferencia con targetPosition es significativa (mayor a 2%)
+    if (abs(targetPosition - currentPosition) > 2) {  // Si la diferencia es mayor a 2%
       lastMoveTime = millis();  // Actualiza el tiempo del último movimiento
 
       if (targetPosition > currentPosition) {  // Si debe abrirse más
@@ -100,6 +107,10 @@ void loop() {
         currentPosition -= rampStep;  // Decrementa la posición actual
         if (currentPosition < targetPosition) currentPosition = targetPosition;  // Limita al objetivo
       }
+
+      // Forzar límites exactos en 0% y 100%
+      if (targetPosition == 0 && currentPosition > 0) currentPosition = 0;  // Fuerza 0% si es el objetivo
+      if (targetPosition == 100 && currentPosition < 100) currentPosition = 100;  // Fuerza 100% si es el objetivo
 
       EEPROM.put(POS_ADDR, currentPosition);  // Guarda la nueva posición en EEPROM
     }
@@ -121,7 +132,7 @@ void loop() {
 
 // Función para verificar si se recibe el comando "borrar-eeprom" por el Monitor Serial
 void checkForEEPROMClear() {
-  Serial.println("Escribe 'borrar-eeprom' para limpiar la memoria EEPROM (10 segundos para escribir)...");  // Instrucción al usuario
+  Serial.println("Escribe 'BE' (Borrar EEPROM) para limpiar la memoria EEPROM (10 segundos restantes para escribir)...");  // Instrucción al usuario
   unsigned long startTime = millis();  // Registra el tiempo de inicio
   String input = "";  // Variable para almacenar el texto recibido
 
@@ -130,9 +141,9 @@ void checkForEEPROMClear() {
       char c = Serial.read();  // Lee un carácter
       if (c == '\n' || c == '\r') {  // Si es un salto de línea o retorno de carro
         input.trim();  // Elimina espacios o caracteres extra
-        if (input == "borrar-eeprom") {  // Compara el texto recibido con el comando
+        if (input == "BE") {  // Compara el texto recibido con el comando
           Serial.println("Borrando EEPROM...");  // Confirma la acción
-          for (int i = 0; i < EEPROM.length(); i++) {  // Recorre toda la memoria EEPROM
+          for (unsigned int i = 0; i < EEPROM.length(); i++) {  // Recorre toda la memoria EEPROM (usamos unsigned int para evitar la advertencia)
             EEPROM.write(i, 0);  // Escribe 0 en cada posición
           }
           Serial.println("EEPROM borrada. Reinicia el Arduino para calibrar de nuevo.");  // Mensaje de confirmación
