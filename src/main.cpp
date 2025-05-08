@@ -87,28 +87,66 @@ void loop() {
   if (!ignorePot || (millis() - ignoreStartTime >= 5000)) {  // Si no ignora o pasaron 5 segundos
     ignorePot = false;  // Reanuda la lectura del potenciómetro
     potValue = analogRead(potPin);  // Lee el valor analógico del potenciómetro
-    targetPosition = map(potValue, minPotValue, maxPotValue, 0, 100);  // Mapea a 0-100%
-    if (targetPosition > 100) targetPosition = 100;  // Limita targetPosition a 100% si se excede
+    
+    // Mapea el rango completo (0-100%) para determinar posición relativa
+    int rawPosition = map(potValue, minPotValue, maxPotValue, 0, 100);  // Mapea a 0-100% para posición absoluta
+    if (rawPosition > 100) rawPosition = 100;  // Limita rawPosition a 100% si se excede
+    if (rawPosition < 0) rawPosition = 0;  // Limita rawPosition a 0% si es menor
+
+    // Determina la dirección del movimiento para manejar las zonas extremas
+    bool movingRight = (potValue > lastPotValue);  // A favor de las agujas (abriendo)
+    bool movingLeft = (potValue < lastPotValue);   // En contra de las agujas (cerrando)
+
+    // Define targetPosition según el rango 20%-80% y las reglas de las zonas extremas
+    if (rawPosition >= 20 && rawPosition <= 80) {  // Rango activo: 20%-80% se mapea a 0%-100%
+      targetPosition = map(rawPosition, 20, 80, 0, 100);  // Mapea el rango 20%-80% a 0%-100%
+    } else if (rawPosition < 20) {  // Zona 0%-20%
+      if (movingLeft) {  // Si va hacia la izquierda (cerrando)
+        targetPosition = 0;  // Cierra completamente con señal fuerte
+      } else {  // Si va hacia la derecha (abriendo)
+        targetPosition = 0;  // No hace nada (mantiene cerrada)
+      }
+    } else if (rawPosition > 80) {  // Zona 80%-100%
+      if (movingRight) {  // Si va hacia la derecha (abriendo)
+        targetPosition = 100;  // Abre completamente con señal fuerte
+      } else {  // Si va hacia la izquierda (cerrando)
+        targetPosition = 100;  // No hace nada (mantiene abierta)
+      }
+    }
 
     // Actualiza currentPosition solo si la diferencia con targetPosition es significativa o está cerca de un extremo
-    if (abs(targetPosition - currentPosition) > 2 || (targetPosition == 0 && currentPosition > 0) || (targetPosition == 100 && currentPosition < 100)) {
+    if (abs(targetPosition - currentPosition) > 2 || (targetPosition == 0 && currentPosition > 0) || (targetPosition == 100 && currentPosition < 100)) {  // Si la diferencia es mayor a 2% o está en los extremos
       lastMoveTime = millis();  // Actualiza el tiempo del último movimiento
 
       if (targetPosition > currentPosition) {  // Si debe abrirse más
-        int pwmValue = map(targetPosition - currentPosition, 0, 100, 100, 255);  // PWM de 100 a 255
+        int pwmValue;  // Valor PWM para el motor
+        if (rawPosition > 80 && movingRight) {  // Si está en 80%-100% y va hacia la derecha
+          pwmValue = 255;  // Señal fuerte para abrir completamente
+        } else {  // En el rango activo o en otras condiciones
+          pwmValue = map(targetPosition - currentPosition, 0, 100, 50, 150);  // PWM de 50 a 150
+        }
+        Serial.print("PWM (abrir): "); Serial.println(pwmValue);  // Muestra el valor PWM para depuración
         analogWrite(RPWM, pwmValue);  // Envía señal PWM para abrir
         analogWrite(LPWM, 0);  // Apaga el cierre
         currentPosition += rampStep;  // Incrementa la posición actual
         if (currentPosition > targetPosition) currentPosition = targetPosition;  // Limita al objetivo
+        delay(100);  // Pequeño retardo para un movimiento más suave
       } else if (targetPosition < currentPosition) {  // Si debe cerrarse más
-        int pwmValue = map(currentPosition - targetPosition, 0, 100, 100, 255);  // PWM de 100 a 255
+        int pwmValue;  // Valor PWM para el motor
+        if (rawPosition < 20 && movingLeft) {  // Si está en 0%-20% y va hacia la izquierda
+          pwmValue = 255;  // Señal fuerte para cerrar completamente
+        } else {  // En el rango activo o en otras condiciones
+          pwmValue = map(currentPosition - targetPosition, 0, 100, 50, 150);  // PWM de 50 a 150
+        }
+        Serial.print("PWM (cerrar): "); Serial.println(pwmValue);  // Muestra el valor PWM para depuración
         analogWrite(RPWM, 0);  // Apaga la apertura
         analogWrite(LPWM, pwmValue);  // Envía señal PWM para cerrar
         currentPosition -= rampStep;  // Decrementa la posición actual
         if (currentPosition < targetPosition) currentPosition = targetPosition;  // Limita al objetivo
+        delay(100);  // Pequeño retardo para un movimiento más suave
       }
 
-      // Forzar límites exactos en 0% y 100% después del ajuste
+      // Forzar límites exactos en 0% y 100%
       if (targetPosition == 0 && currentPosition > 0) currentPosition = 0;  // Fuerza 0% si es el objetivo
       if (targetPosition == 100 && currentPosition < 100) currentPosition = 100;  // Fuerza 100% si es el objetivo
 
@@ -125,7 +163,10 @@ void loop() {
   lastPotValue = potValue;  // Actualiza el último valor leído
 
   // Muestra datos en el Monitor Serial para depuración
-  Serial.print("Pot: "); Serial.print(targetPosition);  // Muestra la posición objetivo
+  Serial.print("potValue: "); Serial.print(potValue);  // Muestra el valor crudo del potenciómetro
+  Serial.print(" - minPotValue: "); Serial.print(minPotValue);  // Muestra el valor mínimo calibrado
+  Serial.print(" - maxPotValue: "); Serial.print(maxPotValue);  // Muestra el valor máximo calibrado
+  Serial.print(" - Pot: "); Serial.print(targetPosition);  // Muestra la posición objetivo
   Serial.print("% - Posición actual: "); Serial.println(currentPosition);  // Muestra la posición actual
   delay(50);  // Pequeño retardo para estabilidad
 }
